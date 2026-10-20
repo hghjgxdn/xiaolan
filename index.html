@@ -59,6 +59,19 @@ footer{flex:0 0 auto;padding:8px 12px calc(8px + env(safe-area-inset-bottom));ba
 #input::placeholder{color:var(--sub)}
 #send{width:34px;height:34px;flex:0 0 auto;border:0;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;cursor:pointer;transition:opacity .18s,transform .12s}
 #send:disabled{opacity:.35;cursor:default}#send:active:not(:disabled){transform:scale(.9)}
+#mic{width:34px;height:34px;flex:0 0 auto;border:0;border-radius:50%;background:transparent;color:var(--sub);display:grid;place-items:center;cursor:pointer;transition:all .18s}
+#mic:active{background:var(--border)}
+#mic.recording{color:#ff3b30;animation:micPulse 1s infinite}
+@keyframes micPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.speak-btn{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:var(--sub);display:grid;place-items:center;cursor:pointer;flex:0 0 auto;margin-left:6px;transition:color .15s}
+.speak-btn:active{color:var(--accent)}
+.speak-btn svg{width:14px;height:14px;fill:currentColor}
+.msg.ai .bubble-wrap{display:flex;align-items:flex-end;gap:4px}
+.voice-settings{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.voice-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.voice-row label{color:var(--sub);min-width:60px}
+.voice-row input[type="range"]{flex:1;accent-color:var(--accent)}
+.voice-row input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent)}
 .sheet{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;animation:fade .18s ease-out}
 @keyframes fade{from{opacity:0}to{opacity:1}}.sheet[hidden]{display:none}
 .sheet-inner{width:100%;max-width:520px;background:var(--surface);border-radius:18px 18px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;animation:slideup .24s cubic-bezier(.32,.72,0,1);max-height:80vh;overflow-y:auto}
@@ -130,6 +143,9 @@ footer{
 <main id="chat" role="log" aria-live="polite"></main>
 <footer>
   <div class="composer">
+    <button id="mic" type="button" aria-label="语音输入">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+    </button>
     <textarea id="input" rows="1" placeholder="和小岚说说话…" enterkeyhint="send" autocomplete="off"></textarea>
     <button id="send" type="button" disabled aria-label="发送">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
@@ -140,6 +156,23 @@ footer{
   <div class="sheet-inner">
     <h2>关于小岚</h2>
     <p>小岚是纯本地版，不连接网络，不需要 Key，所有对话都在你的设备上完成。</p>
+    <h2 style="font-size:15px">语音设置</h2>
+    <div class="voice-settings">
+      <div class="voice-row">
+        <label>自动播放</label>
+        <input type="checkbox" id="voiceAutoPlay" checked>
+      </div>
+      <div class="voice-row">
+        <label>语速</label>
+        <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1">
+        <span id="voiceRateVal" style="min-width:30px;text-align:right">1.0</span>
+      </div>
+      <div class="voice-row">
+        <label>音调</label>
+        <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1">
+        <span id="voicePitchVal" style="min-width:30px;text-align:right">1.0</span>
+      </div>
+    </div>
     <h2 style="font-size:15px">她记得你</h2>
     <div class="mem-box" id="memBox"></div>
     <div class="sheet-actions">
@@ -150,10 +183,10 @@ footer{
 <script>
 (function(){
 'use strict';
-const K_MSG='xiaolan.messages.v17',K_SELF='xiaolan.self.v17',K_THEME='xiaolan.theme';
+const K_MSG='xiaolan.messages.v17',K_SELF='xiaolan.self.v17',K_THEME='xiaolan.theme',K_VOICE='xiaolan.voice.v1';
 const $=id=>document.getElementById(id);
-const chat=$('chat'),input=$('input'),sendBtn=$('send'),themeBtn=$('themeBtn'),infoBtn=$('infoBtn'),clearBtn=$('clearBtn'),statusText=$('statusText'),sheet=$('sheet'),memBox=$('memBox');
-const ICON={moon:'<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',sun:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'};
+const chat=$('chat'),input=$('input'),sendBtn=$('send'),themeBtn=$('themeBtn'),infoBtn=$('infoBtn'),clearBtn=$('clearBtn'),statusText=$('statusText'),sheet=$('sheet'),memBox=$('memBox'),micBtn=$('mic');
+const ICON={moon:'<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',sun:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',speaker:'<svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>'};
 
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const chance=p=>Math.random()<p;
@@ -183,8 +216,19 @@ function appendBubble(role,text,persist){
   if(persist===undefined)persist=true;
   const stick=nearBottom();
   const row=document.createElement('div');row.className='msg '+role;
-  const b=document.createElement('div');b.className='bubble';b.textContent=text;
-  row.appendChild(b);chat.appendChild(row);
+  if(role==='ai'){
+    const wrap=document.createElement('div');wrap.className='bubble-wrap';
+    const b=document.createElement('div');b.className='bubble';b.textContent=text;
+    wrap.appendChild(b);
+    const speakBtn=document.createElement('button');speakBtn.className='speak-btn';speakBtn.innerHTML=ICON.speaker;speakBtn.setAttribute('aria-label','播放语音');
+    speakBtn.addEventListener('click',()=>speak(text));
+    wrap.appendChild(speakBtn);
+    row.appendChild(wrap);
+  }else{
+    const b=document.createElement('div');b.className='bubble';b.textContent=text;
+    row.appendChild(b);
+  }
+  chat.appendChild(row);
   if(persist){messages.push({role,text});save(K_MSG,messages)}
   if(stick)scrollToBottom(true);
 }
@@ -196,6 +240,96 @@ function hideTyping(){if(!typingRowEl)return;typingRowEl.remove();typingRowEl=nu
 
 function setStatus(t){statusText.textContent=t}
 function refreshStatus(){setStatus('在呢')}
+
+// ===== 语音功能 =====
+const voiceCfg=load(K_VOICE,{autoPlay:true,rate:1,pitch:1});
+function saveVoice(){save(K_VOICE,voiceCfg)}
+
+// 语音合成 (TTS)
+let synth=window.speechSynthesis;
+let voices=[];
+function loadVoices(){voices=synth.getVoices();if(!voices.length)setTimeout(loadVoices,100)}
+loadVoices();
+
+function speak(text){
+  if(!synth)return;
+  synth.cancel();
+  const utter=new SpeechSynthesisUtterance(text);
+  utter.lang='zh-CN';
+  utter.rate=voiceCfg.rate;
+  utter.pitch=voiceCfg.pitch;
+  // 尝试找中文女声
+  const zhVoice=voices.find(v=>v.lang.includes('zh')&&v.name.toLowerCase().includes('female'));
+  if(zhVoice)utter.voice=zhVoice;
+  else{
+    const anyZh=voices.find(v=>v.lang.includes('zh'));
+    if(anyZh)utter.voice=anyZh;
+  }
+  synth.speak(utter);
+}
+
+// 语音识别 (STT)
+let recognition=null;
+let isRecording=false;
+function initSpeechRecognition(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition)return false;
+  recognition=new SpeechRecognition();
+  recognition.lang='zh-CN';
+  recognition.continuous=false;
+  recognition.interimResults=false;
+  recognition.maxAlternatives=1;
+  recognition.onresult=(e)=>{
+    const text=e.results[0][0].transcript;
+    input.value=text;
+    autoGrow();updateSendState();
+    stopRecording();
+    // 自动发送
+    setTimeout(()=>send(),300);
+  };
+  recognition.onerror=(e)=>{
+    stopRecording();
+    if(e.error==='not-allowed')alert('请允许使用麦克风');
+  };
+  recognition.onend=()=>{stopRecording()};
+  return true;
+}
+
+function startRecording(){
+  if(!recognition&&!initSpeechRecognition()){
+    alert('你的浏览器不支持语音识别');
+    return;
+  }
+  if(isRecording)return;
+  isRecording=true;
+  micBtn.classList.add('recording');
+  setStatus('正在聆听…');
+  recognition.start();
+}
+
+function stopRecording(){
+  isRecording=false;
+  micBtn.classList.remove('recording');
+  refreshStatus();
+  if(recognition)try{recognition.stop()}catch(_){}
+}
+
+micBtn.addEventListener('click',()=>{
+  if(isRecording)stopRecording();
+  else startRecording();
+});
+
+// 语音设置控件
+const voiceAutoPlay=$('voiceAutoPlay'),voiceRate=$('voiceRate'),voicePitch=$('voicePitch'),voiceRateVal=$('voiceRateVal'),voicePitchVal=$('voicePitchVal');
+voiceAutoPlay.checked=voiceCfg.autoPlay;
+voiceRate.value=voiceCfg.rate;
+voicePitch.value=voiceCfg.pitch;
+voiceRateVal.textContent=voiceCfg.rate.toFixed(1);
+voicePitchVal.textContent=voiceCfg.pitch.toFixed(1);
+
+voiceAutoPlay.addEventListener('change',()=>{voiceCfg.autoPlay=voiceAutoPlay.checked;saveVoice()});
+voiceRate.addEventListener('input',()=>{voiceCfg.rate=parseFloat(voiceRate.value);voiceRateVal.textContent=voiceCfg.rate.toFixed(1);saveVoice()});
+voicePitch.addEventListener('input',()=>{voiceCfg.pitch=parseFloat(voicePitch.value);voicePitchVal.textContent=voiceCfg.pitch.toFixed(1);saveVoice()});
 
 const COQUET=['宝贝，','亲爱的，','小顾，'];
 function humanize(s){if(s.length>22)return s;if(chance(0.05)&&s.length>4)return pick(['嗯，','诶，'])+s;return s}
@@ -856,6 +990,11 @@ async function send(){
   busy=true;setStatus('输入中…');
   try{
     await localReply(text);
+    // 自动播放 AI 回复
+    if(voiceCfg.autoPlay&&messages.length>0){
+      const lastMsg=messages[messages.length-1];
+      if(lastMsg&&lastMsg.role==='ai')speak(lastMsg.text);
+    }
   }catch(err){
     hideTyping();
     appendBubble('ai','⚠️ 出了点问题：'+(err&&err.message?err.message:'未知错误'));
